@@ -1,125 +1,92 @@
 import streamlit as st
-
-st.set_page_config(layout="wide")
-st.title("📊 EDA Dashboard for Any Dataset")
-
-st.markdown("📁 Use the sidebar to navigate through pages: **Overview**, **Univariate**, **Bivariate**, **Multivariate**, and **All Charts**.")
-
-st.info("⬅️ Upload your dataset on any page to begin exploring!")
-
-### ✅ `pages/1_Overview.py`
-
-import streamlit as st
 import pandas as pd
-
-st.title("📄 Dataset Overview")
-
-uploaded_file = st.file_uploader("Upload CSV File", type="csv", key="overview")
-
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    st.subheader("🔍 Preview of Data")
-    st.dataframe(df.head())
-
-    st.subheader("📐 Shape")
-    st.write(df.shape)
-
-    st.subheader("🧾 Missing Values")
-    st.write(df.isnull().sum())
-
-    st.subheader("📊 Data Types")
-    st.write(df.dtypes)
-
-    st.session_state["df"] = df
-
-### ✅ `pages/2_Univariate_Analysis.py`
-
-import streamlit as st
-import plotly.express as px
-
-st.title("📊 Univariate Analysis")
-
-df = st.session_state.get("df", None)
-if df is not None:
-    numeric_cols = df.select_dtypes(include='number').columns.tolist()
-    cat_cols = df.select_dtypes(include='object').columns.tolist()
-
-    if numeric_cols:
-        col = st.selectbox("Select numeric column", numeric_cols)
-        fig = px.histogram(df, x=col, title=f"Histogram of {col}")
-        st.plotly_chart(fig)
-
-    if cat_cols:
-        col = st.selectbox("Select categorical column", cat_cols)
-        st.bar_chart(df[col].value_counts())
-else:
-    st.warning("Upload a dataset from the Overview page.")
-
-### ✅ `pages/3_Bivariate_Analysis.py`
-
-import streamlit as st
-import plotly.express as px
-
-st.title("📈 Bivariate Analysis")
-
-df = st.session_state.get("df", None)
-if df is not None:
-    numeric_cols = df.select_dtypes(include='number').columns.tolist()
-    if len(numeric_cols) >= 2:
-        x = st.selectbox("X-axis", numeric_cols)
-        y = st.selectbox("Y-axis", numeric_cols, index=1)
-        fig = px.scatter(df, x=x, y=y, title=f"{x} vs {y}")
-        st.plotly_chart(fig)
-
-        fig2 = px.box(df, x=x, y=y, title=f"Boxplot: {y} by {x}")
-        st.plotly_chart(fig2)
-    else:
-        st.warning("Need at least two numeric columns.")
-else:
-    st.warning("Upload a dataset from the Overview page.")
-
-### ✅ `pages/4_Multivariate_Analysis.py`
-
-import streamlit as st
 import seaborn as sns
 import matplotlib.pyplot as plt
+import plotly.express as px
 
-st.title("📉 Multivariate Analysis")
+st.set_page_config(page_title="EDA App", layout="wide")
 
-df = st.session_state.get("df", None)
-if df is not None:
-    numeric_cols = df.select_dtypes(include='number').columns.tolist()
-    if len(numeric_cols) >= 2:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.heatmap(df[numeric_cols].corr(), annot=True, cmap="coolwarm", ax=ax)
+# Set sidebar navigation
+page = st.sidebar.selectbox(
+    "Select a Page",
+    ["🏠 Home / Upload", "📊 Univariate", "🔗 Bivariate", "🌐 Multivariate"]
+)
+
+# Session state to store dataframe
+if "df" not in st.session_state:
+    st.session_state.df = None
+
+# ---------------------------- PAGE 1: Upload + Motivation ----------------------------
+if page == "🏠 Home / Upload":
+    st.title("📊 Exploratory Data Analysis (EDA) Tool")
+
+    st.markdown("""
+    Welcome! This app helps you **upload a dataset** and explore it visually through:
+
+    - 📍 Univariate (single-variable)
+    - 🔗 Bivariate (two-variable)
+    - 🌐 Multivariate (multiple-variable) analysis
+
+    ---
+    ### 💡 Why EDA?
+    - Understand patterns and distributions  
+    - Detect missing values and outliers  
+    - Spot correlations and trends  
+    - Guide data preprocessing and feature selection
+
+    Upload your CSV file below to begin:
+    """)
+
+    uploaded_file = st.file_uploader("📂 Upload your CSV file", type=["csv"])
+
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        st.session_state.df = df
+        st.success("File uploaded successfully!")
+        st.subheader("👀 Preview of Uploaded Data")
+        st.dataframe(df.head())
+    else:
+        st.info("Please upload a CSV file to get started.")
+
+# ---------------------------- PAGE 2: Univariate ----------------------------
+elif page == "📊 Univariate":
+    st.title("📍 Univariate Analysis")
+
+    if st.session_state.df is not None:
+        df = st.session_state.df
+        num_cols = df.select_dtypes(include=["float64", "int64"]).columns
+
+        col = st.selectbox("Select a numerical column", num_cols)
+        fig, ax = plt.subplots()
+        sns.histplot(df[col], kde=True, ax=ax)
         st.pyplot(fig)
     else:
-        st.warning("Need at least two numeric columns.")
-else:
-    st.warning("Upload a dataset from the Overview page.")
+        st.warning("Please upload data from the Home page first.")
 
+# ---------------------------- PAGE 3: Bivariate ----------------------------
+elif page == "🔗 Bivariate":
+    st.title("🔗 Bivariate Analysis")
 
-### ✅ `pages/5_All_Charts.py`
+    if st.session_state.df is not None:
+        df = st.session_state.df
+        num_cols = df.select_dtypes(include=["float64", "int64"]).columns
 
-import streamlit as st
-import plotly.express as px
-import seaborn as sns
-import matplotlib.pyplot as plt
+        col1 = st.selectbox("X-axis", num_cols, key="biv1")
+        col2 = st.selectbox("Y-axis", num_cols, key="biv2")
+        fig = px.scatter(df, x=col1, y=col2, title=f"{col1} vs {col2}")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Please upload data from the Home page first.")
 
-st.title("📊 All Charts at a Glance")
+# ---------------------------- PAGE 4: Multivariate ----------------------------
+elif page == "🌐 Multivariate":
+    st.title("🌐 Multivariate Analysis")
 
-df = st.session_state.get("df", None)
-if df is not None:
-    st.subheader("📌 Histogram")
-    num_cols = df.select_dtypes(include='number').columns.tolist()
-    if num_cols:
-        fig = px.histogram(df, x=num_cols[0])
-        st.plotly_chart(fig)
+    if st.session_state.df is not None:
+        df = st.session_state.df
+        num_cols = df.select_dtypes(include=["float64", "int64"]).columns
 
-    st.subheader("📌 Correlation Heatmap")
-    if len(num_cols) >= 2:
-        fig2, ax = plt.subplots(figsize=(10, 6))
-        sns.heatmap(df[num_cols].corr(), annot=True, cmap="coolwarm", ax=ax)
-        st.pyplot(fig2)
-else:
-    st.warning("Upload a dataset from the Overview page.")
+        fig = px.scatter_matrix(df, dimensions=num_cols)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Please upload data from the Home page first.")
