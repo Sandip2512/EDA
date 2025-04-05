@@ -1,92 +1,145 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import plotly.express as px
 
 st.set_page_config(page_title="EDA App", layout="wide")
 
-# Set sidebar navigation
-page = st.sidebar.selectbox(
-    "Select a Page",
-    ["🏠 Home / Upload", "📊 Univariate", "🔗 Bivariate", "🌐 Multivariate"]
-)
+# Sidebar Navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Home", "Univariate Analysis", "Bivariate Analysis", "Multivariate Analysis", "Extra Tools"])
 
-# Session state to store dataframe
-if "df" not in st.session_state:
-    st.session_state.df = None
+# Upload File
+@st.cache_data
+def load_data(uploaded_file):
+    try:
+        return pd.read_csv(uploaded_file)
+    except:
+        return pd.read_excel(uploaded_file)
 
-# ---------------------------- PAGE 1: Upload + Motivation ----------------------------
-if page == "🏠 Home / Upload":
-    st.title("📊 Exploratory Data Analysis (EDA) Tool")
-
+# Home Page
+if page == "Home":
+    st.title("📊 Exploratory Data Analysis App")
     st.markdown("""
-    Welcome! This app helps you **upload a dataset** and explore it visually through:
+    This app allows you to upload a dataset and perform a full EDA process.
+    
+    **Why EDA?**
+    - Understand data shape, types, and distributions  
+    - Detect outliers, duplicates, and missing values  
+    - Explore relationships between variables  
+    - Prepare data for modeling and predictions
 
-    - 📍 Univariate (single-variable)
-    - 🔗 Bivariate (two-variable)
-    - 🌐 Multivariate (multiple-variable) analysis
-
-    ---
-    ### 💡 Why EDA?
-    - Understand patterns and distributions  
-    - Detect missing values and outliers  
-    - Spot correlations and trends  
-    - Guide data preprocessing and feature selection
-
-    Upload your CSV file below to begin:
+    Upload a file below to get started:
     """)
+    uploaded_file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
 
-    uploaded_file = st.file_uploader("📂 Upload your CSV file", type=["csv"])
+    if uploaded_file:
+        df = load_data(uploaded_file)
+        st.subheader("🔍 Data Preview")
+        st.dataframe(df)
 
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
+        st.subheader("🧾 Basic Info")
+        st.write(f"Rows: {df.shape[0]}, Columns: {df.shape[1]}")
+        st.write("Column Data Types:")
+        st.write(df.dtypes)
+
+        st.subheader("⚠️ Missing Values")
+        st.write(df.isnull().sum())
+
+        st.subheader("🧪 Descriptive Statistics")
+        st.write(df.describe())
+
+        # Save uploaded data to session state
         st.session_state.df = df
-        st.success("File uploaded successfully!")
-        st.subheader("👀 Preview of Uploaded Data")
-        st.dataframe(df.head())
+
+# Univariate
+elif page == "Univariate Analysis":
+    if 'df' not in st.session_state:
+        st.warning("Please upload data from the Home page.")
     else:
-        st.info("Please upload a CSV file to get started.")
-
-# ---------------------------- PAGE 2: Univariate ----------------------------
-elif page == "📊 Univariate":
-    st.title("📍 Univariate Analysis")
-
-    if st.session_state.df is not None:
         df = st.session_state.df
-        num_cols = df.select_dtypes(include=["float64", "int64"]).columns
+        st.title("📈 Univariate Analysis")
+        col = st.selectbox("Select a column", df.columns)
 
-        col = st.selectbox("Select a numerical column", num_cols)
-        fig, ax = plt.subplots()
-        sns.histplot(df[col], kde=True, ax=ax)
-        st.pyplot(fig)
+        if pd.api.types.is_numeric_dtype(df[col]):
+            st.write(df[col].describe())
+            fig = px.histogram(df, x=col, nbins=30, title=f"Distribution of {col}")
+            st.plotly_chart(fig)
+        else:
+            st.write(df[col].value_counts())
+            fig = px.bar(df[col].value_counts().reset_index(), x='index', y=col)
+            st.plotly_chart(fig)
+
+# Bivariate
+elif page == "Bivariate Analysis":
+    if 'df' not in st.session_state:
+        st.warning("Please upload data from the Home page.")
     else:
-        st.warning("Please upload data from the Home page first.")
-
-# ---------------------------- PAGE 3: Bivariate ----------------------------
-elif page == "🔗 Bivariate":
-    st.title("🔗 Bivariate Analysis")
-
-    if st.session_state.df is not None:
         df = st.session_state.df
-        num_cols = df.select_dtypes(include=["float64", "int64"]).columns
+        st.title("📊 Bivariate Analysis")
 
-        col1 = st.selectbox("X-axis", num_cols, key="biv1")
-        col2 = st.selectbox("Y-axis", num_cols, key="biv2")
-        fig = px.scatter(df, x=col1, y=col2, title=f"{col1} vs {col2}")
-        st.plotly_chart(fig, use_container_width=True)
+        col1 = st.selectbox("X-axis", df.columns)
+        col2 = st.selectbox("Y-axis", df.columns)
+
+        if pd.api.types.is_numeric_dtype(df[col1]) and pd.api.types.is_numeric_dtype(df[col2]):
+            fig = px.scatter(df, x=col1, y=col2, trendline="ols")
+            st.plotly_chart(fig)
+        else:
+            fig = px.box(df, x=col1, y=col2)
+            st.plotly_chart(fig)
+
+# Multivariate
+elif page == "Multivariate Analysis":
+    if 'df' not in st.session_state:
+        st.warning("Please upload data from the Home page.")
     else:
-        st.warning("Please upload data from the Home page first.")
-
-# ---------------------------- PAGE 4: Multivariate ----------------------------
-elif page == "🌐 Multivariate":
-    st.title("🌐 Multivariate Analysis")
-
-    if st.session_state.df is not None:
         df = st.session_state.df
-        num_cols = df.select_dtypes(include=["float64", "int64"]).columns
+        st.title("🧬 Multivariate Analysis")
+        num_cols = df.select_dtypes(include=np.number).columns.tolist()
 
-        fig = px.scatter_matrix(df, dimensions=num_cols)
-        st.plotly_chart(fig, use_container_width=True)
+        if len(num_cols) >= 2:
+            st.subheader("Heatmap")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.heatmap(df[num_cols].corr(), annot=True, cmap="coolwarm", ax=ax)
+            st.pyplot(fig)
+
+            st.subheader("Pair Plot")
+            if st.checkbox("Show Pair Plot (slow for large datasets)"):
+                fig2 = sns.pairplot(df[num_cols])
+                st.pyplot(fig2)
+
+# Extra Tools
+elif page == "Extra Tools":
+    if 'df' not in st.session_state:
+        st.warning("Please upload data from the Home page.")
     else:
-        st.warning("Please upload data from the Home page first.")
+        df = st.session_state.df
+        st.title("🛠 Extra Data Tools")
+
+        st.subheader("Column Selector")
+        selected_cols = st.multiselect("Select columns to view", df.columns.tolist(), default=df.columns.tolist())
+        st.dataframe(df[selected_cols])
+
+        st.subheader("Missing Value Handling")
+        if st.checkbox("Drop missing values"):
+            df.dropna(inplace=True)
+            st.success("Missing values dropped.")
+
+        st.subheader("Duplicate Handling")
+        if st.checkbox("Drop duplicate rows"):
+            df.drop_duplicates(inplace=True)
+            st.success("Duplicates removed.")
+
+        st.subheader("Convert column to datetime")
+        col = st.selectbox("Select column", df.columns)
+        if st.button("Convert to datetime"):
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+            st.success(f"{col} converted.")
+
+        st.subheader("Download Cleaned Data")
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇️ Download CSV", csv, "cleaned_data.csv", "text/csv")
+
+        st.session_state.df = df
