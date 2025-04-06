@@ -25,11 +25,18 @@ def load_data(file):
 st.sidebar.title("EDA Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Univariate Analysis", "Bivariate Analysis", "Multivariate Analysis"])
 
-# File uploader (persistent via session state)
-if "df" not in st.session_state:
-    uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
-    if uploaded_file:
-        st.session_state.df = load_data(uploaded_file)
+# File uploader
+uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
+
+# Reset button
+if st.sidebar.button("Reset File"):
+    if "df" in st.session_state:
+        del st.session_state.df
+    uploaded_file = None
+
+# Load file if uploaded
+if uploaded_file is not None:
+    st.session_state.df = load_data(uploaded_file)
 
 df = st.session_state.get("df", None)
 
