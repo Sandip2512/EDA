@@ -3,6 +3,11 @@ import pandas as pd
 import plotly.express as px
 from streamlit_lottie import st_lottie
 import requests
+import numpy as np
+
+# Monkey patch for np.bool for compatibility with Plotly
+if not hasattr(np, 'bool'):
+    np.bool = bool
 
 # Set page config
 st.set_page_config(page_title="EDA Web App", layout="wide", page_icon="📊")
@@ -23,7 +28,7 @@ def load_data(file):
 
 # Sidebar navigation
 st.sidebar.title("EDA Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Chart Selection", "Chart Pattern Selection", "Univariate Analysis", "Bivariate Analysis", "Multivariate Analysis"])
+page = st.sidebar.radio("Go to", ["Home", "Chart Selection", "Univariate Analysis", "Bivariate Analysis", "Multivariate Analysis"])
 
 # File uploader
 uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
@@ -60,10 +65,11 @@ if page == "Home":
 elif page == "Chart Selection":
     st.header("Custom Chart Selection")
     if df is not None:
-        chart_type = st.selectbox("Select Chart Type", ["Histogram", "Bar Chart", "Box Plot", "Scatter Plot", "Line Chart", "Pie Chart"])
+        chart_type = st.selectbox("Select Chart Type", ["Histogram", "Bar Chart", "Box Plot", "Scatter Plot", "Line Chart", "Pie Chart", "Correlation Matrix", "Time Series Trend"])
         x_col = st.selectbox("Select X-axis", df.columns)
         y_col = st.selectbox("Select Y-axis (if applicable)", ["None"] + df.columns.tolist())
 
+        fig = None
         if chart_type == "Histogram":
             fig = px.histogram(df, x=x_col, nbins=30, title=f"Histogram of {x_col}")
         elif chart_type == "Bar Chart":
@@ -72,51 +78,28 @@ elif page == "Chart Selection":
             fig = px.box(df, x=x_col, y=None if y_col == "None" else y_col, title=f"Box Plot of {x_col} by {y_col}")
         elif chart_type == "Scatter Plot":
             if y_col != "None":
-                fig = px.scatter(df, x=x_col, y=y_col, title=f"Scatter Plot of {y_col} vs {x_col}")
+                fig = px.scatter(df, x=x_col, y=y_col, title=f"Scatter Plot of {y_col} vs {x_col}",
+                                 color=y_col, color_continuous_scale="Viridis", opacity=0.7)
             else:
                 st.warning("Scatter plot requires both X and Y axes.")
-                fig = None
         elif chart_type == "Line Chart":
             if y_col != "None":
                 fig = px.line(df, x=x_col, y=y_col, title=f"Line Chart of {y_col} vs {x_col}")
             else:
                 st.warning("Line chart requires both X and Y axes.")
-                fig = None
         elif chart_type == "Pie Chart":
             fig = px.pie(df, names=x_col, title=f"Pie Chart of {x_col}")
-        else:
-            fig = None
-
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Please upload a dataset.")
-
-# Chart Pattern Selection Page
-elif page == "Chart Pattern Selection":
-    st.header("Chart Pattern Selection")
-    if df is not None:
-        pattern_type = st.selectbox("Select Pattern Type", ["Correlation Matrix", "Pair Plot", "Box Plot Comparison", "Time Series Trend"])
-        if pattern_type == "Correlation Matrix":
+        elif chart_type == "Correlation Matrix":
             num_df = df.select_dtypes(include='number')
             st.write("### Correlation Matrix")
             st.dataframe(num_df.corr().round(2))
             fig = px.imshow(num_df.corr(), text_auto=True, title="Correlation Heatmap")
-            st.plotly_chart(fig, use_container_width=True)
-        elif pattern_type == "Pair Plot":
-            st.warning("Pair plots are not supported in Plotly. Use Seaborn offline or export subset of data.")
-        elif pattern_type == "Box Plot Comparison":
-            num_cols = df.select_dtypes(include='number').columns.tolist()
-            cat_cols = df.select_dtypes(include='object').columns.tolist()
-            x = st.selectbox("Select Categorical Column", cat_cols)
-            y = st.selectbox("Select Numerical Column", num_cols)
-            fig = px.box(df, x=x, y=y, title=f"Box Plot of {y} by {x}")
-            st.plotly_chart(fig, use_container_width=True)
-        elif pattern_type == "Time Series Trend":
-            time_col = st.selectbox("Select Time Column", df.columns)
+        elif chart_type == "Time Series Trend":
             val_col = st.selectbox("Select Value Column", df.select_dtypes(include='number').columns.tolist())
-            df_sorted = df.sort_values(time_col)
-            fig = px.line(df_sorted, x=time_col, y=val_col, title=f"Trend of {val_col} over {time_col}")
+            df_sorted = df.sort_values(x_col)
+            fig = px.line(df_sorted, x=x_col, y=val_col, title=f"Trend of {val_col} over {x_col}")
+
+        if fig:
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("Please upload a dataset.")
@@ -165,7 +148,13 @@ elif page == "Multivariate Analysis":
             x = st.selectbox("X-axis", num_cols)
             y = st.selectbox("Y-axis", num_cols, index=1)
             color = st.selectbox("Color", num_cols, index=2)
-            fig = px.scatter(df, x=x, y=y, color=color, title=f"{y} vs {x} colored by {color}")
+            fig = px.scatter(
+                df, x=x, y=y, color=color,
+                title=f"{y} vs {x} colored by {color}",
+                color_continuous_scale="Viridis",
+                opacity=0.7,
+                size_max=10
+            )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("Need at least 3 numerical columns for multivariate analysis.")
